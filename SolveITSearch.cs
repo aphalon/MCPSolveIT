@@ -20,11 +20,11 @@ namespace MCPSolveIT
             [Description("Specific key or ID to match.")] string? key = null,
             [Description("Severity level.")] string? severity = null)
         {
-            var query = _telemetryStore.Records.AsQueryable();
+            //var query = _telemetryStore.Records.AsQueryable();
 
             // ... apply telemetry filters ...
 
-            return JsonSerializer.Serialize(query.Take(50).ToList());
+            return "{}";// JsonSerializer.Serialize(query.Take(50).ToList());
         }
 
         // --- TOOL 2: ASSETS ---
@@ -33,13 +33,13 @@ namespace MCPSolveIT
             [Description("The asset ID to find.")] string? assetId = null,
             [Description("The current status of the asset (e.g., 'Active', 'Retired').")] string? status = null)
         {
-            var query = _assetStore.Records.AsQueryable();
+            //var query = _assetStore.Records.AsQueryable();
 
-            // ... apply asset filters ...
-            if (!string.IsNullOrEmpty(assetId)) query = query.Where(a => a.AssetId == assetId);
-            if (!string.IsNullOrEmpty(status)) query = query.Where(a => a.Status == status);
+            //// ... apply asset filters ...
+            //if (!string.IsNullOrEmpty(assetId)) query = query.Where(a => a.AssetId == assetId);
+            //if (!string.IsNullOrEmpty(status)) query = query.Where(a => a.Status == status);
 
-            return JsonSerializer.Serialize(query.Take(50).ToList());
+            return "{}";//return JsonSerializer.Serialize(query.Take(50).ToList());
         }
     }
 }
