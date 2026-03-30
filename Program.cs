@@ -14,6 +14,8 @@ namespace MCPSolveIT
             // Register the data store as a Singleton so it only loads once
             //builder.Services.AddSingleton<TelemetryDataStore>();
 
+            builder.Services.AddHttpContextAccessor(); // Needed to access HttpContext in tools
+
             builder.Services.AddMcpServer()
                 .WithHttpTransport()
                 .WithToolsFromAssembly();
@@ -25,39 +27,43 @@ namespace MCPSolveIT
             {
                 if (context.Request.Path.StartsWithSegments("/mcp"))
                 {
-                    var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
-                    bool isAuthorized = false;
+                    // 1. Read the flag (Defaults to 'true' if the setting is missing from JSON)
+                    bool authRequired = app.Configuration.GetValue<bool>("AuthenticationRequired", true);
 
-                    // 1. Check if the header exists and starts with "Bearer "
-                    if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer "))
+                    if (authRequired)
                     {
-                        // Extract just the key string
-                        var extractedKey = authHeader.Substring("Bearer ".Length).Trim();
+                        var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
+                        bool isAuthorized = false;
 
-                        // 2. Load the list of valid keys from appsettings.json
-                        var validKeys = app.Configuration.GetSection("McpApiKeys").Get<List<ApiKeyConfig>>()
-                                        ?? new List<ApiKeyConfig>();
-
-                        // 3. Check if the extracted key matches ANY key in our list
-                        var matchedClient = validKeys.FirstOrDefault(k => k.Key == extractedKey);
-
-                        if (matchedClient != null)
+                        if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer "))
                         {
-                            isAuthorized = true;
-                            // Optional: Log which specific client just connected!
-                            app.Logger.LogInformation("MCP Client Connected: {ClientName}", matchedClient.Name);
+                            var extractedKey = authHeader.Substring("Bearer ".Length).Trim();
+                            var validKeys = app.Configuration.GetSection("McpApiKeys").Get<List<ApiKeyConfig>>()
+                                            ?? new List<ApiKeyConfig>();
+
+                            var matchedClient = validKeys.FirstOrDefault(k => k.Key == extractedKey);
+
+                            if (matchedClient != null)
+                            {
+                                isAuthorized = true;
+                                context.Items["McpClientName"] = matchedClient.Name;
+                            }
+                        }
+
+                        if (!isAuthorized)
+                        {
+                            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                            await context.Response.WriteAsync("Unauthorized: Invalid or missing API Key.");
+                            return; // Stop the pipeline
                         }
                     }
-
-                    // 4. Reject the request if no match was found
-                    if (!isAuthorized)
+                    else
                     {
-                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                        await context.Response.WriteAsync("Unauthorized: Invalid or missing API Key.");
-                        return; // Stop the pipeline
+                        // 2. If Auth is turned off, flag them as Anonymous so your tools still work!
+                        context.Items["McpClientName"] = "Anonymous (Auth Disabled)";
+                        app.Logger.LogWarning("MCP Request permitted without authentication.");
                     }
                 }
-
                 // If authorized, proceed to the MCP endpoints
                 await next(context);
             });
